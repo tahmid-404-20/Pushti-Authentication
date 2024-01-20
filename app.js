@@ -1,58 +1,48 @@
-const supabase =  require("./db.js");
+const path = require("path");
 const express = require('express'); 
 const cors = require('cors');
 require('dotenv').config();
-const app = express(); 
+const session = require("express-session");
+const flash = require("connect-flash");
+var timeout = require("connect-timeout");
+const app = express();
+const bodyParser = require('body-parser');
 const PORT = process.env.port;
 
 app.use(express.json());
 app.use(cors({origin: '*'}));
 
+const loginRouter = require("./login");
+const registerRouter = require("./register");
+
+app.use("/login", loginRouter);
+app.use("/register", registerRouter);
+
+// function makeid(length) {
+//     var result           = '';
+//     var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+//     var charactersLength = characters.length;
+//     for ( var i = 0; i < length; i++ ) {
+//       result += characters.charAt(Math.floor(Math.random() * 
+//  charactersLength));
+//    }
+//    return result;
+// }
 
 
-app.get('/division', async (req, res) => {
-    try{
-        const data = await supabase.any('SELECT id, name FROM "Division"');
-        res.json(data);
-    }
-    catch(error){
-        console.log(error);
-    }
-});
+app.use(timeout("50s")); //set 10s timeout for all requests
+// app.use(
+//   session({
+//     secret: makeid(25),
+//     resave: false,
+//     saveUninitialized: true,
+//   })
+// );
+app.use(flash());
 
-app.post('/district', async (req, res) => {
-    try{
-        const division = req.body['division']; 
-        const data = await supabase.any('SELECT id, name FROM "District" WHERE "divisionId" = $1', [division]);
-        res.json(data);
-    }
-    catch(error){
-        console.log(error);
-    }
-});
-
-app.post('/upazilla', async (req, res) => {
-    try{
-        const district = req.body['district']; 
-        const data = await supabase.any('SELECT id, name FROM "Upazilla" WHERE "districtId" = $1', [district]);
-        res.json(data);
-    }
-    catch(error){
-        console.log(error);
-    }
-});
-
-app.post('/union', async (req, res) => {
-    try{
-        const upazilla = req.body['upazilla']; 
-        const data = await supabase.any('SELECT id, name FROM "UnionParishad" WHERE "upazillaId" = $1', [upazilla]);
-        res.json(data);
-    }
-    catch(error){
-        console.log(error);
-    }
-});
 
 app.listen(PORT, () => {
-    console.log(`Pushti-LocationMS is running on port ${PORT}`);
+    console.log(`Pushti-AuthenticationMS is running on port ${PORT}`);
 });
+
+
