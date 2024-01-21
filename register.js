@@ -2,8 +2,8 @@ const supabase = require("./db.js");
 const express = require("express");
 const axios = require("axios");
 require("dotenv").config();
-const crypto = require("crypto");
 const cors = require("cors");
+const crypto = require("crypto");
 const fetch = require("node-fetch");
 
 const router = express.Router();
@@ -17,37 +17,178 @@ function hashPassword(password) {
   return hash;
 }
 
-async function fetchDataGETMethod(path) {
-  try {
-    console.log(String(process.env.locationMsURL) + String(path));
-    //   const response = await fetch(String(process.env.locationMsUrl) + String(path));
-    const response = await axios.get(
-      String(process.env.locationMsURL) + String(path)
-    );
-    console.log(response);
-    return response;
-  } catch (error) {
-    console.error("Error:", error);
-    return null; // Return null or handle the error as needed
-  }
+router.route("/submit").post(async (req, res) => {
+  /* 
+    {
+   "accountType": "Vendor",
+   "farmerType": null,
+    "nid": "12345678901234567890",
+    "name": "test",
+    "password": "test",
+    "dob": "2020-12-12",
+    "address": "test",
+    "mobile": "1234567890",
+    "union": 1
+    "email": "test@test.com"
 }
+  */ // request body consists of the fields above, insert them into User table and give a userId
+  // then insert the userId and the accountType into the the corresponding table, account type can be either "Farmer", "SME" or "Vendor"
+
+  // insert into User table using parameterized query
+  const {
+    accountType,
+    farmerType,
+    nid,
+    name,
+    password,
+    dob,
+    permanentAddress,
+    mobile,
+    union,
+    email,
+  } = req.body;
+
+  let query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING "id"`;
+
+  // execute the query and get the userId
+  let userId;
+  try {
+    const result = await supabase.any(query, [
+      nid,
+      name,
+      dob,
+      permanentAddress,
+      mobile,
+      union,
+      email,
+    ]);
+    userId = String(result[0].id);
+    console.log("userId ===> " + userId);
+    let hashedPassword = hashPassword(String(password) + String(userId));
+    query = `UPDATE "User" SET "password" = $1 WHERE "id" = $2`;
+
+    try {
+      await supabase.any(query, [hashedPassword, userId]);
+
+      // get the agentId from the UnionParishad table using the unionId
+
+      try {
+        const result = await supabase.any(
+          `SELECT "agentId" FROM "UnionParishad" WHERE "id" = $1`,
+          [union]
+        );
+        let agentId = String(result[0].agentId);
+        console.log("agentId ===> " + agentId);
+
+        switch (accountType) {
+          case "Farmer":
+            try {
+              await supabase.any(
+                `INSERT INTO "Farmer" ("id", "farmerType", "agentId") VALUES ($1, $2, $3)`,
+                [userId, farmerType, agentId]
+              );
+              res
+                .status(200)
+                .json({ message: "Farmer registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into Farmer table");
+            }
+            break;
+          case "Sme":
+            try {
+              await supabase.any(
+                `INSERT INTO "Sme" ("id", "agentId") VALUES ($1, $2)`,
+                [userId, agentId]
+              );
+              res.status(200).json({ message: "SME registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into SME table");
+            }
+            break;
+          case "Vendor":
+            try {
+              await supabase.any(
+                `INSERT INTO "Vendor" ("id", "agentId") VALUES ($1, $2)`,
+                [userId, agentId]
+              );
+              res
+                .status(200)
+                .json({ message: "Vendor registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into Vendor table");
+            }
+            break;
+          default:
+            let query = `DELETE FROM "User" WHERE "id" = $1`;
+            try {
+              await supabase.any(query, [userId]);
+            } catch (error) {
+              console.log(error);
+              res.status(500).send("Error deleting from User table");
+            }
+            res.status(400).json({ message: "Invalid account type" });
+            break;
+        }
+      } catch (error) {
+        let query = `DELETE FROM "User" WHERE "id" = $1`;
+        try {
+          await supabase.any(query, [userId]);
+        } catch (error) {
+          console.log(error);
+          res.status(500).send("Error deleting from User table");
+        }
+        console.log(error);
+        res.status(500).send("Error fetching agentId");
+      }
+    } catch (error) {
+      // delete the user from the User table
+      let query = `DELETE FROM "User" WHERE "id" = $1`;
+      try {
+        await supabase.any(query, [userId]);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send("Error deleting from User table");
+      }
+      console.log(error);
+      res.status(500).send("Error setting password");
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error inserting into User table");
+  }
+});
 
 router.route("/farmer").get(async (req, res) => {
-  /* {
-        "farmerTypes": [
-            "Dairy",
-            "Poultry"
-        ],
-        "divisions": [
-            "Dhaka",
-            "Sylhet"
-        ]
-    } */
-
   // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
   let divisions;
   try {
-    divisions = await fetchDataGETMethod("/division");
+    divisions = await axios.get(
+      String(process.env.locationMsURL) + "/division"
+    );
     res
       .status(200)
       .json({ farmerTypes: ["Dairy", "Poultry"], divisions: divisions.data });
@@ -62,21 +203,12 @@ router.route("/farmer").get(async (req, res) => {
 });
 
 router.route("/sme").get(async (req, res) => {
-  /* {
-          "farmerTypes": [
-              "Dairy",
-              "Poultry"
-          ],
-          "divisions": [
-              "Dhaka",
-              "Sylhet"
-          ]
-      } */
-
   // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
   let divisions;
   try {
-    divisions = await fetchDataGETMethod("/division");
+    divisions = await axios.get(
+      String(process.env.locationMsURL) + "/division"
+    );
     res.status(200).json({ divisions: divisions.data });
   } catch (error) {
     console.log(error);
@@ -89,21 +221,12 @@ router.route("/sme").get(async (req, res) => {
 });
 
 router.route("/vendor").get(async (req, res) => {
-  /* {
-          "farmerTypes": [
-              "Dairy",
-              "Poultry"
-          ],
-          "divisions": [
-              "Dhaka",
-              "Sylhet"
-          ]
-      } */
-
   // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
   let divisions;
   try {
-    divisions = await fetchDataGETMethod("/division");
+    divisions = await axios.get(
+      String(process.env.locationMsURL) + "/division"
+    );
     res.status(200).json({ divisions: divisions.data });
   } catch (error) {
     console.log(error);
@@ -115,44 +238,72 @@ router.route("/vendor").get(async (req, res) => {
   }
 });
 
-router.route("/validate").post(async (req, res) => {
-  /*
-    The request body should contain the following:
-        {
-        "id": 123,
-        "password": "abcd"
-        }   
-    */
+router.route("/district").post(async (req, res) => {
+  /* {
+        "division": 1
+    } */
 
-  const { id, password } = req.body;
-
-  console.log(req.body);
-
-  if (!id || !password) {
-    res.status(400).json({ message: "Invalid request body" });
-  }
-
-  const hashedPassword = hashPassword(String(password) + String(id));
-
-  // check the id and password in the User table, if password matches, generate an authentication token and send it back
+  // get the districts by hitting process.env.locationMsUrl + "/district" in post method
+  let districts;
   try {
-    // const result = await supabase.any("SELECT password FROM User WHERE id = $1 AND password = $2", [id, hashedPassword]);
-    const result = await supabase.any(
-      'SELECT password FROM "User" WHERE "id" = $1 AND "password" = $2',
-      [id, hashedPassword]
+    districts = await axios.post(
+      String(process.env.locationMsURL) + "/district",
+      req.body
     );
-
-    console.log(result);
-    // check password from result and match with hashedPassword, if matches, generate an authentication token and send it back
-    if (result.length === 0) {
-      res.status(401).json({ message: "Invalid credentials" });
-    } else {
-      res.status(200).json({ success: true, message: "Login successful" });
-    }
+    res.status(200).json(districts.data);
   } catch (error) {
-    // Handle the error
     console.log(error);
-    res.status(500).json({ message: "Internal server error" });
+    if (error.response) {
+      res.status(error.response.status).send(error.response.data);
+    } else {
+      res.status(500).send("Error fetching data");
+    }
+  }
+});
+
+router.route("/upazilla").post(async (req, res) => {
+  /* {
+        "district": 1
+    } */
+
+  // get the upazillas by hitting process.env.locationMsUrl + "/upazilla" in post method
+  let upazillas;
+  try {
+    upazillas = await axios.post(
+      String(process.env.locationMsURL) + "/upazilla",
+      req.body
+    );
+    res.status(200).json(upazillas.data);
+  } catch (error) {
+    console.log(error);
+    if (error.response) {
+      res.status(error.response.status).send(error.response.data);
+    } else {
+      res.status(500).send("Error fetching data");
+    }
+  }
+});
+
+router.route("/union").post(async (req, res) => {
+  /* {
+        "upazilla": 1
+    } */
+
+  // get the unions by hitting process.env.locationMsUrl + "/union" in post method
+  let unions;
+  try {
+    unions = await axios.post(
+      String(process.env.locationMsURL) + "/union",
+      req.body
+    );
+    res.status(200).json(unions.data);
+  } catch (error) {
+    console.log(error);
+    if (error.response) {
+      res.status(error.response.status).send(error.response.data);
+    } else {
+      res.status(500).send("Error fetching data");
+    }
   }
 });
 
