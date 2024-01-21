@@ -1,15 +1,21 @@
+const supabase = require("./db.js");
 const express = require("express");
 const axios = require("axios");
 require("dotenv").config();
 const cors = require("cors");
-const crypto = require('crypto');
+const crypto = require("crypto");
 const fetch = require("node-fetch");
 
 const router = express.Router();
 
-
 router.use(express.json());
 router.use(cors({ origin: "*" }));
+
+function hashPassword(password) {
+  const sha256 = crypto.createHash("sha256");
+  const hash = sha256.update(password).digest("hex");
+  return hash;
+}
 
 router.route("/submit").post(async (req, res) => {
   /* 
@@ -29,14 +35,152 @@ router.route("/submit").post(async (req, res) => {
   // then insert the userId and the accountType into the the corresponding table, account type can be either "Farmer", "SME" or "Vendor"
 
   // insert into User table using parameterized query
-  const { accountType, farmerType, nid, name, password, dob, address, mobile, union, email } = req.body;
+  const {
+    accountType,
+    farmerType,
+    nid,
+    name,
+    password,
+    dob,
+    permanentAddress,
+    mobile,
+    union,
+    email,
+  } = req.body;
 
+  let query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING "id"`;
 
+  // execute the query and get the userId
+  let userId;
+  try {
+    const result = await supabase.any(query, [
+      nid,
+      name,
+      dob,
+      permanentAddress,
+      mobile,
+      union,
+      email,
+    ]);
+    userId = String(result[0].id);
+    console.log("userId ===> " + userId);
+    let hashedPassword = hashPassword(String(password) + String(userId));
+    query = `UPDATE "User" SET "password" = $1 WHERE "id" = $2`;
 
-  let query = `INSERT INTO "User" ("nid", "name", "password", "dob", "address", "mobile", "union", "email") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`;
+    try {
+      await supabase.any(query, [hashedPassword, userId]);
 
+      // get the agentId from the UnionParishad table using the unionId
+
+      try {
+        const result = await supabase.any(
+          `SELECT "agentId" FROM "UnionParishad" WHERE "id" = $1`,
+          [union]
+        );
+        let agentId = String(result[0].agentId);
+        console.log("agentId ===> " + agentId);
+
+        switch (accountType) {
+          case "Farmer":
+            try {
+              await supabase.any(
+                `INSERT INTO "Farmer" ("id", "farmerType", "agentId") VALUES ($1, $2, $3)`,
+                [userId, farmerType, agentId]
+              );
+              res
+                .status(200)
+                .json({ message: "Farmer registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into Farmer table");
+            }
+            break;
+          case "Sme":
+            try {
+              await supabase.any(
+                `INSERT INTO "Sme" ("id", "agentId") VALUES ($1, $2)`,
+                [userId, agentId]
+              );
+              res.status(200).json({ message: "SME registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into SME table");
+            }
+            break;
+          case "Vendor":
+            try {
+              await supabase.any(
+                `INSERT INTO "Vendor" ("id", "agentId") VALUES ($1, $2)`,
+                [userId, agentId]
+              );
+              res
+                .status(200)
+                .json({ message: "Vendor registration successful" });
+            } catch (error) {
+              let query = `DELETE FROM "User" WHERE "id" = $1`;
+              try {
+                await supabase.any(query, [userId]);
+              } catch (error) {
+                console.log(error);
+                res.status(500).send("Error deleting from User table");
+              }
+              console.log(error);
+              res.status(500).send("Error inserting into Vendor table");
+            }
+            break;
+          default:
+            let query = `DELETE FROM "User" WHERE "id" = $1`;
+            try {
+              await supabase.any(query, [userId]);
+            } catch (error) {
+              console.log(error);
+              res.status(500).send("Error deleting from User table");
+            }
+            res.status(400).json({ message: "Invalid account type" });
+            break;
+        }
+      } catch (error) {
+        let query = `DELETE FROM "User" WHERE "id" = $1`;
+        try {
+          await supabase.any(query, [userId]);
+        } catch (error) {
+          console.log(error);
+          res.status(500).send("Error deleting from User table");
+        }
+        console.log(error);
+        res.status(500).send("Error fetching agentId");
+      }
+    } catch (error) {
+      // delete the user from the User table
+      let query = `DELETE FROM "User" WHERE "id" = $1`;
+      try {
+        await supabase.any(query, [userId]);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send("Error deleting from User table");
+      }
+      console.log(error);
+      res.status(500).send("Error setting password");
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error inserting into User table");
+  }
 });
-
 
 router.route("/farmer").get(async (req, res) => {
   // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
@@ -93,7 +237,6 @@ router.route("/vendor").get(async (req, res) => {
     }
   }
 });
-
 
 router.route("/district").post(async (req, res) => {
   /* {
@@ -163,8 +306,5 @@ router.route("/union").post(async (req, res) => {
     }
   }
 });
-
-
-
 
 module.exports = router;
