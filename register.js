@@ -17,6 +17,27 @@ function hashPassword(password) {
   return hash;
 }
 
+async function getLocationMsUrl() {
+  try {
+    let serviceRegisterUrl =
+      String(process.env.serviceRegistryUrl) + "/get-service";
+    response = await axios.post(serviceRegisterUrl, {
+      name: process.env.locationMsName,
+    });
+    // console.log(response.data);
+
+    if (response.data.success) {
+      return response.data.url;
+    } else {
+      console.log(response.data.message);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error recovering location-data", error);
+    return null;
+  }
+}
+
 router.route("/submit").post(async (req, res) => {
   /* 
     {
@@ -183,12 +204,16 @@ router.route("/submit").post(async (req, res) => {
 });
 
 router.route("/farmer").get(async (req, res) => {
-  // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
+  let locationMsUrl = await getLocationMsUrl();
+  console.log(locationMsUrl);
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let divisions;
   try {
-    divisions = await axios.get(
-      String(process.env.locationMsURL) + "/division"
-    );
+    divisions = await axios.get(String(locationMsUrl) + "/division");
     res
       .status(200)
       .json({ farmerTypes: ["Dairy", "Poultry"], divisions: divisions.data });
@@ -203,12 +228,15 @@ router.route("/farmer").get(async (req, res) => {
 });
 
 router.route("/sme").get(async (req, res) => {
-  // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
+  let locationMsUrl = await getLocationMsUrl();
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let divisions;
   try {
-    divisions = await axios.get(
-      String(process.env.locationMsURL) + "/division"
-    );
+    divisions = await axios.get(String(locationMsUrl) + "/division");
     res.status(200).json({ divisions: divisions.data });
   } catch (error) {
     console.log(error);
@@ -221,12 +249,15 @@ router.route("/sme").get(async (req, res) => {
 });
 
 router.route("/vendor").get(async (req, res) => {
-  // get the divisions by hitting process.env.locationMsUrl + "/division" in get method
+  let locationMsUrl = await getLocationMsUrl();
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let divisions;
   try {
-    divisions = await axios.get(
-      String(process.env.locationMsURL) + "/division"
-    );
+    divisions = await axios.get(String(locationMsUrl) + "/division");
     res.status(200).json({ divisions: divisions.data });
   } catch (error) {
     console.log(error);
@@ -243,13 +274,15 @@ router.route("/district").post(async (req, res) => {
         "division": 1
     } */
 
-  // get the districts by hitting process.env.locationMsUrl + "/district" in post method
+  let locationMsUrl = await getLocationMsUrl();
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let districts;
   try {
-    districts = await axios.post(
-      String(process.env.locationMsURL) + "/district",
-      req.body
-    );
+    districts = await axios.post(String(locationMsUrl) + "/district", req.body);
     res.status(200).json(districts.data);
   } catch (error) {
     console.log(error);
@@ -266,13 +299,15 @@ router.route("/upazilla").post(async (req, res) => {
         "district": 1
     } */
 
-  // get the upazillas by hitting process.env.locationMsUrl + "/upazilla" in post method
+  let locationMsUrl = await getLocationMsUrl();
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let upazillas;
   try {
-    upazillas = await axios.post(
-      String(process.env.locationMsURL) + "/upazilla",
-      req.body
-    );
+    upazillas = await axios.post(String(locationMsUrl) + "/upazilla", req.body);
     res.status(200).json(upazillas.data);
   } catch (error) {
     console.log(error);
@@ -289,13 +324,15 @@ router.route("/union").post(async (req, res) => {
         "upazilla": 1
     } */
 
-  // get the unions by hitting process.env.locationMsUrl + "/union" in post method
+  let locationMsUrl = await getLocationMsUrl();
+  if (locationMsUrl == null) {
+    res.status(500).send("Error fetching data");
+    return;
+  }
+
   let unions;
   try {
-    unions = await axios.post(
-      String(process.env.locationMsURL) + "/union",
-      req.body
-    );
+    unions = await axios.post(String(locationMsUrl) + "/union", req.body);
     res.status(200).json(unions.data);
   } catch (error) {
     console.log(error);
