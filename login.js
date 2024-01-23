@@ -52,12 +52,12 @@ router.route("/validate").post(async (req, res) => {
         if (receivedPasswordHashed !== retrievedPasswordHashed) {
             res.status(401).json({ success: false, message: "Invalid ID or password" });
         } else {
-            res.status(200).json({ success: true, message: "Login successful"});
+            res.status(200).json({ id:id, success: true, message: "Login successful"});
         }
     } catch (error) {
         // Handle the error
         console.log(error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Invalid id or password" });
     }
 
 });

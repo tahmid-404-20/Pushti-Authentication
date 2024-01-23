@@ -38,6 +38,16 @@ async function getLocationMsUrl() {
   }
 }
 
+async function deleteUserTableEntry(userId) {
+  let query = `DELETE FROM "User" WHERE "id" = $1`;
+  try {
+    await supabase.any(query, [userId]);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error deleting from User table");
+  }
+}
+
 router.route("/submit").post(async (req, res) => {
   /* 
     {
@@ -102,98 +112,70 @@ router.route("/submit").post(async (req, res) => {
         console.log("agentId ===> " + agentId);
 
         switch (accountType) {
-          case "Farmer":
+          case "farmer":
             try {
               await supabase.any(
                 `INSERT INTO "Farmer" ("id", "farmerType", "agentId") VALUES ($1, $2, $3)`,
                 [userId, farmerType, agentId]
               );
-              res
-                .status(200)
-                .json({ message: "Farmer registration successful" });
+              res.status(200).json({
+                success: true,
+                message: "Farmer registration successful",
+                redirectUrl: "/login"
+              });
             } catch (error) {
-              let query = `DELETE FROM "User" WHERE "id" = $1`;
-              try {
-                await supabase.any(query, [userId]);
-              } catch (error) {
-                console.log(error);
-                res.status(500).send("Error deleting from User table");
-              }
+              await deleteUserTableEntry(userId);
               console.log(error);
               res.status(500).send("Error inserting into Farmer table");
             }
             break;
-          case "Sme":
+          case "sme":
             try {
               await supabase.any(
                 `INSERT INTO "Sme" ("id", "agentId") VALUES ($1, $2)`,
                 [userId, agentId]
               );
-              res.status(200).json({ message: "SME registration successful" });
+              res.status(200).json({
+                success: true,
+                message: "SME registration successful",
+                redirectUrl: "/login"
+              });
             } catch (error) {
-              let query = `DELETE FROM "User" WHERE "id" = $1`;
-              try {
-                await supabase.any(query, [userId]);
-              } catch (error) {
-                console.log(error);
-                res.status(500).send("Error deleting from User table");
-              }
+              await deleteUserTableEntry(userId);
               console.log(error);
               res.status(500).send("Error inserting into SME table");
             }
             break;
-          case "Vendor":
+          case "vendor":
             try {
               await supabase.any(
                 `INSERT INTO "Vendor" ("id", "agentId") VALUES ($1, $2)`,
                 [userId, agentId]
               );
-              res
-                .status(200)
-                .json({ message: "Vendor registration successful" });
+              res.status(200).json({
+                success: true,
+                message: "Vendor registration successful",
+                redirectUrl: "/login"
+              });
             } catch (error) {
-              let query = `DELETE FROM "User" WHERE "id" = $1`;
-              try {
-                await supabase.any(query, [userId]);
-              } catch (error) {
-                console.log(error);
-                res.status(500).send("Error deleting from User table");
-              }
+              await deleteUserTableEntry(userId);
               console.log(error);
               res.status(500).send("Error inserting into Vendor table");
             }
             break;
           default:
-            let query = `DELETE FROM "User" WHERE "id" = $1`;
-            try {
-              await supabase.any(query, [userId]);
-            } catch (error) {
-              console.log(error);
-              res.status(500).send("Error deleting from User table");
-            }
+            await deleteUserTableEntry(userId);
             res.status(400).json({ message: "Invalid account type" });
             break;
         }
       } catch (error) {
-        let query = `DELETE FROM "User" WHERE "id" = $1`;
-        try {
-          await supabase.any(query, [userId]);
-        } catch (error) {
-          console.log(error);
-          res.status(500).send("Error deleting from User table");
-        }
+        await deleteUserTableEntry(userId);
         console.log(error);
         res.status(500).send("Error fetching agentId");
       }
     } catch (error) {
       // delete the user from the User table
-      let query = `DELETE FROM "User" WHERE "id" = $1`;
-      try {
-        await supabase.any(query, [userId]);
-      } catch (error) {
-        console.log(error);
-        res.status(500).send("Error deleting from User table");
-      }
+      await deleteUserTableEntry(userId);
       console.log(error);
       res.status(500).send("Error setting password");
     }
