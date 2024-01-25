@@ -79,8 +79,9 @@ router.route("/submit").post(async (req, res) => {
     email,
   } = req.body;
 
-  let query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING "id"`;
+  let query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email", "userType") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`;
 
+  const accountTypeLower = accountType.toLowerCase();
   // execute the query and get the userId
   let userId;
   try {
@@ -92,6 +93,7 @@ router.route("/submit").post(async (req, res) => {
       mobile,
       union,
       email,
+      accountTypeLower,
     ]);
     userId = String(result[0].id);
     console.log("userId ===> " + userId);
@@ -111,7 +113,7 @@ router.route("/submit").post(async (req, res) => {
         let agentId = String(result[0].agentId);
         console.log("agentId ===> " + agentId);
 
-        switch (accountType) {
+        switch (accountTypeLower) {
           case "farmer":
             try {
               await supabase.any(
