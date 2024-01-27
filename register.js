@@ -79,7 +79,28 @@ router.route("/submit").post(async (req, res) => {
     email,
   } = req.body;
 
-  let query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email", "userType") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`;
+  // look at user table if a user with the nid exists, if exists, return error
+  let query = `SELECT "nid" FROM "User" WHERE "nid" = $1`;
+  try {
+    const resultDB = await supabase.any(query, [nid]);
+    
+    console.log(resultDB);
+    console.log(resultDB.length);
+    
+    if (resultDB.length > 0) {
+      console.log("Hey bro, me got here");
+      res
+        .status(200)
+        .json({ error: "You are already registered!" });
+      return;
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({ error: true, message: "Unknown database error" });
+    return;
+  }
+
+  query = `INSERT INTO "User" ("nid", "name", "dob", "permanentAddress", "phone", "unionId", "email", "userType") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`;
 
   const accountTypeLower = accountType.toLowerCase();
   // execute the query and get the userId
@@ -123,12 +144,17 @@ router.route("/submit").post(async (req, res) => {
               res.status(200).json({
                 success: true,
                 message: "Farmer registration successful",
-                redirectUrl: "/login"
+                redirectUrl: "/login",
               });
             } catch (error) {
               await deleteUserTableEntry(userId);
               console.log(error);
-              res.status(500).send("Error inserting into Farmer table");
+              res
+                .status(500)
+                .send({
+                  error: true,
+                  message: "Error inserting into Farmer table",
+                });
             }
             break;
           case "sme":
@@ -140,12 +166,17 @@ router.route("/submit").post(async (req, res) => {
               res.status(200).json({
                 success: true,
                 message: "SME registration successful",
-                redirectUrl: "/login"
+                redirectUrl: "/login",
               });
             } catch (error) {
               await deleteUserTableEntry(userId);
               console.log(error);
-              res.status(500).send("Error inserting into SME table");
+              res
+                .status(500)
+                .send({
+                  error: true,
+                  message: "Error inserting into SME table",
+                });
             }
             break;
           case "vendor":
@@ -157,12 +188,17 @@ router.route("/submit").post(async (req, res) => {
               res.status(200).json({
                 success: true,
                 message: "Vendor registration successful",
-                redirectUrl: "/login"
+                redirectUrl: "/login",
               });
             } catch (error) {
               await deleteUserTableEntry(userId);
               console.log(error);
-              res.status(500).send("Error inserting into Vendor table");
+              res
+                .status(500)
+                .send({
+                  error: true,
+                  message: "Error inserting into Vendor table",
+                });
             }
             break;
           default:
